@@ -150,6 +150,33 @@ document.addEventListener('DOMContentLoaded', () => {
         apiKeyGroup.setAttribute('open', '');
     }
 
+    // --- WEB SHARE TARGET HANDLING ---
+    handleSharedUrl();
+
+    function handleSharedUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let sharedUrl = urlParams.get('url') || urlParams.get('text');
+
+        if (sharedUrl) {
+            // Android sometimes sends a mix of text and URL. Extract just the URL.
+            const urlMatch = sharedUrl.match(/(https?:\/\/[^\s]+)/g);
+            if (urlMatch) {
+                sharedUrl = urlMatch[0];
+            }
+
+            if (sharedUrl.startsWith('http')) {
+                urlInput.value = sharedUrl;
+                pasteBtn.style.display = 'none';
+
+                // Remove the query parameters from the URL bar so refresh doesn't trigger again
+                window.history.replaceState({}, document.title, window.location.pathname);
+
+                // Delay slightly to let the UI finish rendering before blasting the API
+                setTimeout(startConversion, 500);
+            }
+        }
+    }
+
     // --- HELPER FUNCTIONS ---
     function updateStatus(message, type = 'info') {
         statusDiv.textContent = message;
