@@ -2,10 +2,11 @@
 
 A Progressive Web App (PWA) designed to elegantly convert web articles into perfectly formatted PDFs optimized for the **reMarkable Paper Pro** and **Pro Move** tablets. 
 
-Say goodbye to cluttered web pages, distracting ads, and squished text. Send articles directly from your phone's browser straight to your reMarkable tablet in a beautiful, readable format.
+Say goodbye to cluttered web pages, distracting ads, and squished text. Read articles directly from your phone's browser in a clean, newspaper-style reading mode, or send them straight to your reMarkable tablet in a beautiful, readable PDF format.
 
 ## ✨ Features
 
+- **Native Reading Mode**: Read articles natively in the app with a beautiful, dynamic multi-column newspaper layout before deciding to send them to your device.
 - **Blazing Fast Extraction**: Uses Mozilla's `Readability.js` directly in your browser to instantly strip away ads, navigation bars, and popups, leaving only the pure content.
 - **Detailed AI Fallback**: For complex websites where standard extraction fails, toggle the **Detailed (AI)** engine to have Google's Gemini AI reconstruct the article perfectly.
 - **Native Android Sharing**: Install this PWA on your Android device (like a Pixel phone) and share articles directly from Chrome to the app via the native share sheet. 

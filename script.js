@@ -33,10 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DOM ELEMENTS ---
     const urlInput = document.getElementById('url-input');
-    const pdfUploadInput = document.getElementById('pdf-upload');
     const btnQuickPdf = document.getElementById('btn-quick-pdf');
     const btnReadNative = document.getElementById('btn-read-native');
-    const btnProcessPdf = document.getElementById('btn-process-pdf');
 
     // Reading Mode DOM
     const homeView = document.querySelector('.main-container');
@@ -50,24 +48,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const historySection = document.getElementById('history-section');
     const historyList = document.getElementById('history-list');
     const clearHistoryBtn = document.getElementById('clear-history-btn');
-    const fileUploadContent = document.querySelector('.file-upload-content');
-    const fileNameDisplay = document.getElementById('file-name-display');
     const apiKeyInput = document.getElementById('api-key-input');
     const toggleKeyBtn = document.getElementById('toggle-key-btn');
     const toggleKeyIcon = document.getElementById('toggle-key-icon');
     const apiKeyGroup = document.getElementById('api-key-group');
-    const pdfUploadGroup = document.getElementById('pdf-upload-group');
     const extractionToggle = document.getElementById('extraction-toggle');
 
     // --- EVENT LISTENERS ---
     btnQuickPdf.addEventListener('click', () => startConversion('pdf'));
     btnReadNative.addEventListener('click', () => startConversion('native'));
-    btnProcessPdf.addEventListener('click', () => {
-        const file = pdfUploadInput.files[0];
-        if (file) handlePdfConversion(file);
-        else updateStatus('Please select a PDF first.', 'error');
-    });
-
     btnCloseReading.addEventListener('click', () => {
         readingView.classList.add('hidden');
         homeView.classList.remove('hidden');
@@ -89,9 +78,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     urlInput.addEventListener('input', () => {
         pasteBtn.style.display = urlInput.value.trim() === '' ? 'flex' : 'none';
-        if (urlInput.value.trim() !== '') {
-            pdfUploadGroup.removeAttribute('open');
-        }
     });
 
     clearHistoryBtn.addEventListener('click', clearHistory);
@@ -117,58 +103,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // File Drag and Drop / Selection listeners
-    pdfUploadInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            updateFileNameDisplay(e.target.files[0].name);
-            urlInput.value = ''; // Clear URL if file is selected
-            pasteBtn.style.display = 'flex';
-        }
-    });
-
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        fileUploadContent.addEventListener(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        fileUploadContent.addEventListener(eventName, highlight, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        fileUploadContent.addEventListener(eventName, unhighlight, false);
-    });
-
-    function highlight(e) {
-        fileUploadContent.classList.add('dragover');
-    }
-
-    function unhighlight(e) {
-        fileUploadContent.classList.remove('dragover');
-    }
-
-    fileUploadContent.addEventListener('drop', handleDrop, false);
-
-    function handleDrop(e) {
-        let dt = e.dataTransfer;
-        let files = dt.files;
-        pdfUploadInput.files = files; // Assign to input
-
-        if (files.length > 0) {
-            updateFileNameDisplay(files[0].name);
-            urlInput.value = '';
-            pasteBtn.style.display = 'flex';
-        }
-    }
-
-    function updateFileNameDisplay(name) {
-        fileNameDisplay.textContent = `Selected: ${name}`;
-        fileNameDisplay.classList.remove('hidden');
-    }
-
     // --- INITIALIZATION ---
     loadHistory();
     registerServiceWorker();
@@ -236,9 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function toggleLoading(isLoading) {
         btnQuickPdf.disabled = isLoading;
         btnReadNative.disabled = isLoading;
-        btnProcessPdf.disabled = isLoading;
         urlInput.disabled = isLoading;
-        pdfUploadInput.disabled = isLoading;
 
         if (isLoading) {
             btnQuickPdf.innerHTML = `
@@ -370,9 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 urlInput.focus();
                 urlInput.dispatchEvent(new Event('input'));
 
-                // Clear file input if url is pasted
-                pdfUploadInput.value = '';
-                fileNameDisplay.classList.add('hidden');
+
             }
         } catch (err) {
             console.error('Failed to read clipboard: ', err);
@@ -456,38 +386,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function handlePdfConversion(file) {
-        toggleLoading(true);
-        try {
-            updateStatus('Reading PDF file...', 'info');
-            const arrayBuffer = await file.arrayBuffer();
-            const typedarray = new Uint8Array(arrayBuffer);
-            const pdf = await pdfjsLib.getDocument(typedarray).promise;
-
-            let fullText = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(' ');
-                fullText += pageText + '\n\n';
-            }
-
-            updateStatus('Asking AI model to format text...', 'info');
-            const articleData = await callGeminiForPdfText(fullText, file.name);
-
-            updateStatus('Formatting PDF...', 'info');
-            await generatePdf(articleData);
-
-        } catch (error) {
-            console.error('PDF Conversion Error:', error);
-            updateStatus(`Error: ${error.message}`, 'error');
-        } finally {
-            toggleLoading(false);
-            pdfUploadInput.value = '';
-            fileNameDisplay.classList.add('hidden');
-        }
-    }
-
     // --- READING MODE LOGIC ---
     function showReadingMode(articleData) {
         currentReadingArticleData = articleData;
@@ -538,8 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 div.onclick = () => {
                     urlInput.value = item.url;
                     urlInput.dispatchEvent(new Event('input'));
-                    pdfUploadInput.value = '';
-                    fileNameDisplay.classList.add('hidden');
                     startConversion();
                 };
                 historyList.appendChild(div);
@@ -946,34 +842,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return await makeGeminiRequest(payload);
     }
 
-    async function callGeminiForPdfText(rawText, originalFilename) {
-        // Implementation from original code
-        const systemPrompt = `You are an expert text formatting agent. You will be given raw, unstructured text extracted from a PDF. Your task is to analyze the text and return a clean, structured JSON object.
-        The JSON object must contain: a 'title' (which you should infer from the text, or use the original filename as a fallback), and the 'articleBodyHtml' which is the full body of the text formatted into clean HTML with <p> tags for paragraphs.
-        CRITICAL INSTRUCTIONS:
-        1. Reconstruct the paragraphs from the raw text. The text may have erratic line breaks; your job is to create a readable, flowing article.
-        2. Do not omit any text. The 'articleBodyHtml' must contain the complete, unabridged content.
-        3. You may optionally include 'author' and 'publicationDate' if they can be clearly identified in the text.`;
-
-        const payload = {
-            contents: [{ parts: [{ text: `Original Filename: ${originalFilename}\n\nRaw Text:\n${rawText}` }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: "OBJECT",
-                    properties: {
-                        "title": { "type": "STRING" },
-                        "author": { "type": "STRING" },
-                        "publicationDate": { "type": "STRING" },
-                        "articleBodyHtml": { "type": "STRING" }
-                    },
-                    required: ["title", "articleBodyHtml"]
-                }
-            }
-        };
-        return await makeGeminiRequest(payload);
-    }
 
     async function makeGeminiRequest(payload) {
         const apiKey = apiKeyInput.value.trim();
