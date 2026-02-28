@@ -18,8 +18,9 @@
             "type": "image/png"
         }
     ],
+    "scope": "/read-on-remarkable/",
     "share_target": {
-        "action": "./",
+        "action": "/read-on-remarkable/",
         "method": "GET",
         "params": {
             "title": "title",

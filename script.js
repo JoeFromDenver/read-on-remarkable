@@ -825,7 +825,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- GEMINI API CALLS ---
-    async function callGeminiForUrl(html, originalUrl) {
+    async function callGeminiForUrl(rawHtml, originalUrl) {
+        // Pre-process HTML to massively reduce token payload and speed up Gemini TTFT
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, 'text/html');
+
+        // Strip out non-content heavy nodes
+        const elementsToRemove = doc.querySelectorAll('script, style, svg, nav, footer, aside, noscript, iframe, path, symbol');
+        elementsToRemove.forEach(el => el.remove());
+
+        const cleanedHtml = doc.body ? doc.body.innerHTML : rawHtml;
+
         const systemPrompt = `You are an expert web content extraction agent. Your task is to analyze the provided HTML of a web article and return a clean, structured JSON object. 
         The JSON object must contain: the main title, author's name, publication date, the publication's name (e.g., 'The New York Times'), the URL of the main feature image, and the complete, unabridged body of the article in clean HTML format.
         CRITICAL INSTRUCTIONS:
@@ -838,7 +848,7 @@ document.addEventListener('DOMContentLoaded', () => {
         7.  Ensure all image URLs within the article body are absolute (though typically you will remove them).`;
 
         const payload = {
-            contents: [{ parts: [{ text: `Original URL: ${originalUrl}\n\nHTML:\n${html}` }] }],
+            contents: [{ parts: [{ text: `Original URL: ${originalUrl}\n\nHTML:\n${cleanedHtml}` }] }],
             systemInstruction: { parts: [{ text: systemPrompt }] },
             generationConfig: {
                 responseMimeType: "application/json",
