@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let articleData = null;
 
-            if (extractionToggle.checked) {
+            if (!extractionToggle.checked) {
                 // Detailed (AI) extraction
                 updateStatus('Asking AI model to extract article...', 'info');
                 articleData = await callGeminiForUrl(html, url);

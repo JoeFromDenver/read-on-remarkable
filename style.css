@@ -333,11 +333,11 @@ input[type="checkbox"]:checked+.toggle-label .toggle-slider {
     box-shadow: 0 2px 5px rgba(147, 51, 234, 0.3);
 }
 
-input[type="checkbox"]:not(:checked)+.toggle-label .fast-text {
+input[type="checkbox"]:not(:checked)+.toggle-label .ai-text {
     color: white;
 }
 
-input[type="checkbox"]:checked+.toggle-label .ai-text {
+input[type="checkbox"]:checked+.toggle-label .fast-text {
     color: white;
 }
 
