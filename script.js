@@ -211,6 +211,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function processImageForPaperPro(imageBuffer) {
+        return new Promise((resolve, reject) => {
+            try {
+                const blob = new Blob([imageBuffer], { type: 'image/jpeg' });
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+
+                    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imgData.data;
+
+                    // Boost Contrast (1.25x) and Saturation (1.35x)
+                    const contrastFactor = 1.25;
+                    const saturationFactor = 1.35;
+                    const intercept = 128 * (1 - contrastFactor);
+
+                    for (let i = 0; i < data.length; i += 4) {
+                        let r = data[i], g = data[i + 1], b = data[i + 2];
+
+                        // Contrast
+                        r = r * contrastFactor + intercept;
+                        g = g * contrastFactor + intercept;
+                        b = b * contrastFactor + intercept;
+
+                        // Saturation 
+                        const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
+                        r = gray + saturationFactor * (r - gray);
+                        g = gray + saturationFactor * (g - gray);
+                        b = gray + saturationFactor * (b - gray);
+
+                        // Clamp
+                        data[i] = Math.max(0, Math.min(255, r));
+                        data[i + 1] = Math.max(0, Math.min(255, g));
+                        data[i + 2] = Math.max(0, Math.min(255, b));
+                    }
+
+                    ctx.putImageData(imgData, 0, 0);
+
+                    canvas.toBlob((blob) => {
+                        blob.arrayBuffer().then(resolve).catch(reject);
+                    }, 'image/jpeg', 0.9);
+                };
+                img.onerror = () => {
+                    console.warn("Could not process image for Paper Pro.");
+                    resolve(imageBuffer);
+                };
+                img.src = URL.createObjectURL(blob);
+            } catch (error) {
+                resolve(imageBuffer);
+            }
+        });
+    }
+
     function convertWebPToJpeg(webpArrayBuffer) {
         return new Promise((resolve, reject) => {
             const blob = new Blob([webpArrayBuffer], { type: 'image/webp' });
@@ -586,7 +643,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Align left for Paper Pro, center for Pro Move
                 const alignment = deviceProfile.name === DEVICE_PROFILES.PRO.name ? 'left' : 'center';
 
-                doc.image(article._rawImageBuffer, {
+                let finalImageBuffer = article._rawImageBuffer;
+
+                if (deviceProfile.name === DEVICE_PROFILES.PRO.name || deviceProfile.name === DEVICE_PROFILES.PRO_MOVE.name) {
+                    updateStatus('Optimizing image for Paper Pro colors...', 'info');
+                    finalImageBuffer = await processImageForPaperPro(article._rawImageBuffer);
+                }
+
+                doc.image(finalImageBuffer, {
                     fit: [doc.page.width - doc.page.margins.left - doc.page.margins.right, 300],
                     align: alignment
                 });
