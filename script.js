@@ -34,7 +34,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM ELEMENTS ---
     const urlInput = document.getElementById('url-input');
     const pdfUploadInput = document.getElementById('pdf-upload');
-    const convertBtn = document.getElementById('convert-btn');
+    const btnQuickPdf = document.getElementById('btn-quick-pdf');
+    const btnReadNative = document.getElementById('btn-read-native');
+    const btnProcessPdf = document.getElementById('btn-process-pdf');
+
+    // Reading Mode DOM
+    const homeView = document.querySelector('.main-container');
+    const readingView = document.getElementById('reading-view');
+    const btnCloseReading = document.getElementById('btn-close-reading');
+    const btnReadingPdf = document.getElementById('btn-reading-pdf');
+    const newspaperContent = document.getElementById('newspaper-content');
+
     const statusDiv = document.getElementById('status');
     const pasteBtn = document.getElementById('paste-btn');
     const historySection = document.getElementById('history-section');
@@ -50,11 +60,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const extractionToggle = document.getElementById('extraction-toggle');
 
     // --- EVENT LISTENERS ---
-    convertBtn.addEventListener('click', startConversion);
+    btnQuickPdf.addEventListener('click', () => startConversion('pdf'));
+    btnReadNative.addEventListener('click', () => startConversion('native'));
+    btnProcessPdf.addEventListener('click', () => {
+        const file = pdfUploadInput.files[0];
+        if (file) handlePdfConversion(file);
+        else updateStatus('Please select a PDF first.', 'error');
+    });
+
+    btnCloseReading.addEventListener('click', () => {
+        readingView.classList.add('hidden');
+        homeView.classList.remove('hidden');
+    });
+
+    let currentReadingArticleData = null;
+    btnReadingPdf.addEventListener('click', async () => {
+        if (!currentReadingArticleData) return;
+        updateStatus('Formatting PDF...', 'info');
+        // Briefly swap to home view to show loading state from top layer, though loading overlay handles it globally
+        await generatePdf(currentReadingArticleData);
+    });
+
     pasteBtn.addEventListener('click', pasteFromClipboard);
 
     urlInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') startConversion();
+        if (e.key === 'Enter') startConversion('pdf');
     });
 
     urlInput.addEventListener('input', () => {
@@ -204,21 +234,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function toggleLoading(isLoading) {
-        convertBtn.disabled = isLoading;
+        btnQuickPdf.disabled = isLoading;
+        btnReadNative.disabled = isLoading;
+        btnProcessPdf.disabled = isLoading;
         urlInput.disabled = isLoading;
         pdfUploadInput.disabled = isLoading;
 
         if (isLoading) {
-            convertBtn.innerHTML = `
+            btnQuickPdf.innerHTML = `
                 <span class="material-symbols-outlined spinner">progress_activity</span>
                 Processing...
             `;
         } else {
-            convertBtn.innerHTML = `
+            btnQuickPdf.innerHTML = `
                 <span class="icon-wrapper">
                     <span class="material-symbols-outlined">picture_as_pdf</span>
                 </span>
-                Generate PDF
+                Quick PDF
             `;
         }
     }
@@ -349,20 +381,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- CORE LOGIC ---
-    function startConversion() {
+    function startConversion(mode = 'pdf') {
         const url = urlInput.value.trim();
-        const pdfFile = pdfUploadInput.files[0];
 
-        if (url) {
-            handleUrlConversion(url);
-        } else if (pdfFile) {
-            handlePdfConversion(pdfFile);
-        } else {
-            updateStatus('Please enter a URL or upload a PDF.', 'error');
+        if (!url) {
+            updateStatus('Please enter an Article URL.', 'error');
+            return;
         }
+
+        // Check for API key if they are using the AI engine
+        if (!extractionToggle.checked) {
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if (!apiKey || apiKey.trim() === '') {
+                updateStatus('Please enter your Gemini API Key first.', 'error');
+                apiKeyGroup.setAttribute('open', '');
+                apiKeyInput.focus();
+                return;
+            }
+        }
+
+        handleUrlConversion(url, mode);
     }
 
-    async function handleUrlConversion(url) {
+    async function handleUrlConversion(url, mode) {
         toggleLoading(true);
         try {
             updateStatus('Fetching article content...', 'info');
@@ -382,16 +423,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateStatus('Parsing article locally...', 'info');
                 articleData = await extractWithReadability(html, url);
 
-                // If Readability fails or returns garbage, auto-fallback to AI
+                // If Readability fails or returns garbage, auto-fallback to AI (if key exists)
                 if (!articleData.title || !articleData.articleBodyHtml || articleData.articleBodyHtml.trim().length < 50) {
                     console.warn("Readability failed or returned insufficient content. Falling back to Gemini...");
+
+                    const apiKey = localStorage.getItem('geminiApiKey');
+                    if (!apiKey || apiKey.trim() === '') {
+                        throw new Error("Local parsing failed, and no Gemini API key is available for AI fallback. Please provide a key.");
+                    }
+
                     updateStatus('Local parse insufficient. Falling back to AI model...', 'info');
                     articleData = await callGeminiForUrl(html, url);
                 }
             }
 
-            updateStatus('Formatting PDF...', 'info');
-            await generatePdf(articleData);
+            if (mode === 'pdf') {
+                updateStatus('Formatting PDF...', 'info');
+                await generatePdf(articleData);
+            } else if (mode === 'native') {
+                updateStatus('Opening Reading Mode...', 'info');
+                showReadingMode(articleData);
+            }
 
             saveToHistory(articleData.title, url);
             loadHistory();
@@ -434,6 +486,31 @@ document.addEventListener('DOMContentLoaded', () => {
             pdfUploadInput.value = '';
             fileNameDisplay.classList.add('hidden');
         }
+    }
+
+    // --- READING MODE LOGIC ---
+    function showReadingMode(articleData) {
+        currentReadingArticleData = articleData;
+
+        let safeHtml = DOMPurify.sanitize(articleData.articleBodyHtml);
+
+        newspaperContent.innerHTML = `
+            <h1>${articleData.title || 'Untitled Article'}</h1>
+            ${articleData.author || articleData.publicationName || articleData.publicationDate ?
+                `<div style="column-span: all; text-align: center; font-style: italic; color: var(--clr-text-muted); margin-bottom: 2rem;">
+                    ${[articleData.author, articleData.publicationName, articleData.publicationDate].filter(Boolean).join(' | ')}
+                </div>` : ''
+            }
+            ${articleData.featureImageUrl ?
+                `<img src="${articleData.featureImageUrl}" alt="Feature Image" style="column-span: all; margin-bottom: 2rem; width: 100%; border-radius: var(--radius-md);">` : ''
+            }
+            ${safeHtml}
+        `;
+
+        // Swap Views
+        homeView.classList.add('hidden');
+        readingView.classList.remove('hidden');
+        window.scrollTo(0, 0);
     }
 
     // --- HISTORY MANAGEMENT ---

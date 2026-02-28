@@ -44,21 +44,39 @@
     <main id="app-container" class="glass-panel">
         <header class="app-header">
             <h1 class="target-title font-handwriting">Read Later on reMarkable <span
-                    style="font-size: 0.4em; vertical-align: middle; color: #4f46e5;">v2.0</span></h1>
+                    style="font-size: 0.4em; vertical-align: middle; color: #4f46e5;">v5.0</span></h1>
             <p class="subtitle">Create beautiful PDFs optimized for <span class="badge">Paper Pro</span> & <span
                     class="badge">Pro Move</span>.</p>
         </header>
 
-        <div class="input-group">
+        <div class="input-group url-action-section">
             <label for="url-input">
                 <span class="material-symbols-outlined">link</span>
-                Option 1: Article URL
+                Article URL
             </label>
             <div class="input-wrapper">
                 <input type="url" id="url-input" placeholder="https://www.example.com/article..." autocomplete="off">
                 <button id="paste-btn" class="btn-paste" aria-label="Paste URL">
                     <span class="material-symbols-outlined">content_paste</span>
                     Paste
+                </button>
+            </div>
+
+            <div class="action-buttons-grid"
+                style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                <button id="btn-quick-pdf" class="btn-primary" style="padding: 1rem; width: 100%;">
+                    <span class="icon-wrapper" style="margin-bottom: 5px;">
+                        <span class="material-symbols-outlined">picture_as_pdf</span>
+                    </span>
+                    Option 1:<br>Quick PDF
+                </button>
+
+                <button id="btn-read-native" class="btn-secondary"
+                    style="padding: 1rem; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
+                    <span class="icon-wrapper" style="background: rgba(14, 165, 233, 0.1); color: var(--clr-accent);">
+                        <span class="material-symbols-outlined">menu_book</span>
+                    </span>
+                    Option 2:<br>Read Natively
                 </button>
             </div>
         </div>
@@ -81,9 +99,19 @@
                     </div>
                 </label>
                 <input type="file" id="pdf-upload" accept="application/pdf" class="sr-only">
-                <div id="file-name-display" class="file-name-display hidden"></div>
+                <div id="file-name-display" class="file-name-display hidden" style="margin-bottom: 10px;"></div>
+                <button id="btn-process-pdf" class="btn-primary" style="width: 100%;">
+                    <span class="icon-wrapper">
+                        <span class="material-symbols-outlined">auto_awesome</span>
+                    </span>
+                    Re-format PDF
+                </button>
             </div>
         </details>
+
+        <div class="divider">
+            <span>SETTINGS</span>
+        </div>
 
         <details class="input-group details-group" id="api-key-group">
             <summary class="details-summary">
@@ -99,9 +127,9 @@
             </div>
         </details>
 
-        <div class="action-area">
+        <div class="action-area" style="margin-top: 1rem;">
             <div class="toggle-container"
-                style="display: flex; align-items: center; justify-content: center; margin-bottom: 20px; gap: 10px;">
+                style="display: flex; align-items: center; justify-content: center; gap: 10px;">
                 <label for="extraction-toggle"
                     style="font-family: 'Outfit', sans-serif; font-size: 0.9rem; color: #475569;">Extraction
                     Engine:</label>
@@ -114,13 +142,6 @@
                     </label>
                 </div>
             </div>
-
-            <button id="convert-btn" class="btn-primary">
-                <span class="icon-wrapper">
-                    <span class="material-symbols-outlined">picture_as_pdf</span>
-                </span>
-                Generate PDF
-            </button>
         </div>
 
         <div id="status" class="status-message"></div>
@@ -137,6 +158,28 @@
             </div>
         </div>
 
+    </main>
+
+    <!-- Native Reading Mode Container (Hidden by default) -->
+    <main class="reading-mode-container hidden" id="reading-view">
+        <header class="reading-header glass-effect">
+            <button id="btn-close-reading" class="btn-icon" aria-label="Go Back">
+                <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div class="reading-title-banner">
+                <span class="material-symbols-outlined"
+                    style="font-size: 1.2rem; color: var(--clr-primary);">menu_book</span>
+                <span>Reading Mode</span>
+            </div>
+            <button id="btn-reading-pdf" class="btn-primary btn-small">
+                <span class="material-symbols-outlined" style="font-size: 1.2rem;">picture_as_pdf</span>
+                <span class="hide-mobile">Save to reMarkable</span>
+            </button>
+        </header>
+
+        <div class="newspaper-layout" id="newspaper-content">
+            <!-- Article Content Injected Here -->
+        </div>
     </main>
 
     <!-- Application Logic -->
