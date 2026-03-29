@@ -368,8 +368,13 @@ input[type="url"]:focus {
     box-shadow: 0 0 0 4px var(--clr-primary-light);
 }
 
+.masked-password {
+    -webkit-text-security: disc;
+    text-security: disc;
+}
+
 input[type="password"],
-input[type="text"]#api-key-input {
+input[type="text"].masked-password {
     width: 100%;
     padding: 1rem 1.25rem;
     padding-right: 3rem;
@@ -384,7 +389,7 @@ input[type="text"]#api-key-input {
 }
 
 input[type="password"]:focus,
-input[type="text"]#api-key-input:focus {
+input[type="text"].masked-password:focus {
     border-color: var(--clr-primary);
     background: #fff;
     box-shadow: 0 0 0 4px var(--clr-primary-light);

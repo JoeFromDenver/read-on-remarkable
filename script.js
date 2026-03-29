@@ -88,13 +88,11 @@ document.addEventListener('DOMContentLoaded', () => {
     clearHistoryBtn.addEventListener('click', clearHistory);
 
     toggleKeyBtn.addEventListener('click', () => {
-        if (apiKeyInput.type === 'password') {
-            apiKeyInput.type = 'text';
-            toggleKeyIcon.textContent = 'visibility_off';
-        } else {
-            apiKeyInput.type = 'password';
-            toggleKeyIcon.textContent = 'visibility';
-        }
+        apiKeyInput.classList.toggle('masked-password');
+        apiKeyInput.type = apiKeyInput.classList.contains('masked-password') ? 'text' : 'password';
+        // We set type=text because if we toggle off the mask, we want it to be normal text. 
+        // Actually, if we just remove the mask class, it stays type=text but is visible.
+        toggleKeyIcon.textContent = apiKeyInput.classList.contains('masked-password') ? 'visibility' : 'visibility_off';
     });
 
     apiKeyInput.addEventListener('change', () => {
@@ -108,13 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     toggleProxyKeyBtn.addEventListener('click', () => {
-        if (proxyTokenInput.type === 'password') {
-            proxyTokenInput.type = 'text';
-            toggleProxyKeyIcon.textContent = 'visibility_off';
-        } else {
-            proxyTokenInput.type = 'password';
-            toggleProxyKeyIcon.textContent = 'visibility';
-        }
+        proxyTokenInput.classList.toggle('masked-password');
+        proxyTokenInput.type = proxyTokenInput.classList.contains('masked-password') ? 'text' : 'password';
+        toggleProxyKeyIcon.textContent = proxyTokenInput.classList.contains('masked-password') ? 'visibility' : 'visibility_off';
     });
 
     [proxyUrlInput, proxyTokenInput].forEach(el => {
@@ -566,11 +560,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const imgFetchStartTime = performance.now();
                     updateStatus('Pre-fetching feature image...', 'info');
-                    const proxyImageUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(article.featureImageUrl)}`;
+
+                    const customProxyUrl = proxyUrlInput.value.trim();
+                    const customProxyToken = proxyTokenInput.value.trim();
+                    let proxyImageUrl = '';
+
+                    // Don't proxy if it's already a data URI
+                    if (article.featureImageUrl.startsWith('data:')) {
+                        proxyImageUrl = article.featureImageUrl;
+                    } else if (customProxyUrl) {
+                        proxyImageUrl = `${customProxyUrl}?url=${encodeURIComponent(article.featureImageUrl)}&secret=${encodeURIComponent(customProxyToken)}`;
+                    } else {
+                        proxyImageUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(article.featureImageUrl)}`;
+                    }
+
                     const imageResponse = await fetch(proxyImageUrl);
                     if (imageResponse.ok) {
-                        let imageBuffer = await imageResponse.arrayBuffer();
-                        if (article.featureImageUrl.toLowerCase().endsWith('.webp')) {
+                        let imageBuffer;
+
+                        if (proxyImageUrl.startsWith('data:')) {
+                            const response = await fetch(proxyImageUrl);
+                            imageBuffer = await response.arrayBuffer();
+                        } else {
+                            imageBuffer = await imageResponse.arrayBuffer();
+
+                            if (customProxyUrl) {
+                                // Check if the proxy wrapped the binary in a JSON {content: base64} payload
+                                try {
+                                    const text = new TextDecoder("utf-8").decode(imageBuffer);
+                                    if (text.trim().startsWith('{')) {
+                                        const json = JSON.parse(text);
+                                        if (json.content) {
+                                            const binaryString = window.atob(json.content.replace(/^data:image\/(png|jpeg|webp|gif);base64,/, ''));
+                                            const bytes = new Uint8Array(binaryString.length);
+                                            for (let i = 0; i < binaryString.length; i++) {
+                                                bytes[i] = binaryString.charCodeAt(i);
+                                            }
+                                            imageBuffer = bytes.buffer;
+                                        }
+                                    }
+                                } catch (e) {
+                                    // It wasn't JSON, meaning the proxy correctly returned pure binary! Keep imageBuffer as is.
+                                }
+                            }
+                        }
+
+                        if (article.featureImageUrl.toLowerCase().endsWith('.webp') || (proxyImageUrl.startsWith('data:image/webp'))) {
                             updateStatus('Converting WebP image...', 'info');
                             imageBuffer = await convertWebPToJpeg(imageBuffer);
                         }
