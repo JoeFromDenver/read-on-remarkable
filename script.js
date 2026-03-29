@@ -364,9 +364,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleUrlConversion(url, mode) {
+        const totalStartTime = performance.now();
+        console.log(`[Performance] === Starting Conversion for URL: ${url} ===`);
+
         toggleLoading(true);
         try {
             updateStatus('Fetching article content...', 'info');
+            const fetchStartTime = performance.now();
+
             const customProxyUrl = proxyUrlInput.value.trim();
             const customProxyToken = proxyTokenInput.value.trim();
             let proxyUrl = '';
@@ -392,21 +397,30 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 html = await response.text();
             }
+            console.log(`[Performance] HTML Fetch & Parse took ${(performance.now() - fetchStartTime).toFixed(0)}ms`);
 
             let articleData = null;
 
             updateStatus('Parsing article locally...', 'info');
+            const readStartTime = performance.now();
             articleData = await extractWithReadability(html, url);
+            console.log(`[Performance] Readability Extraction took ${(performance.now() - readStartTime).toFixed(0)}ms`);
+
             const isReadabilityBad = !articleData.title || !articleData.articleBodyHtml || articleData.articleBodyHtml.trim().length < 50;
 
             if (!extractionToggle.checked) {
                 // Detailed (AI) extraction
                 if (isReadabilityBad) {
                     updateStatus('Local parse failed. Asking AI for FULL extraction (slow)...', 'info');
+                    const aiFullStartTime = performance.now();
                     articleData = await callGeminiForUrl(html, url);
+                    console.log(`[Performance] Gemini FULL Extraction took ${(performance.now() - aiFullStartTime).toFixed(0)}ms`);
                 } else {
                     updateStatus('Asking AI model for metadata...', 'info');
+                    const aiMetaStartTime = performance.now();
                     const metadata = await callGeminiForMetadata(html, url);
+                    console.log(`[Performance] Gemini Metadata Extraction took ${(performance.now() - aiMetaStartTime).toFixed(0)}ms`);
+
                     articleData.title = metadata.title || articleData.title;
                     articleData.author = metadata.author || articleData.author;
                     articleData.publicationDate = metadata.publicationDate || articleData.publicationDate;
@@ -422,13 +436,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         throw new Error("Local parsing failed, and no Gemini API key is available for AI fallback. Please provide a key.");
                     }
                     updateStatus('Local parse insufficient. Falling back to FULL AI extraction (slow)...', 'info');
+                    const aiFullStartTime = performance.now();
                     articleData = await callGeminiForUrl(html, url);
+                    console.log(`[Performance] Gemini Fallback FULL Extraction took ${(performance.now() - aiFullStartTime).toFixed(0)}ms`);
                 }
             }
 
             if (mode === 'pdf') {
                 updateStatus('Formatting PDF...', 'info');
+                const pdfStartTime = performance.now();
                 await generatePdf(articleData);
+                console.log(`[Performance] PDF Generation function finished in ${(performance.now() - pdfStartTime).toFixed(0)}ms (Stream may still be writing)`);
             } else if (mode === 'native') {
                 updateStatus('Opening Reading Mode...', 'info');
                 showReadingMode(articleData);
@@ -436,6 +454,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             saveToHistory(articleData.title, url);
             loadHistory();
+
+            console.log(`[Performance] === TOTAL Conversion Time: ${(performance.now() - totalStartTime).toFixed(0)}ms ===`);
 
         } catch (error) {
             console.error('URL Conversion Error:', error);
@@ -523,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- PDFKIT IMPLEMENTATION (Stubbed out internals for now, leaving main signature) ---
     // Full generation logic remains the same.
     async function generatePdf(article) {
+        const streamStartTime = performance.now();
         updateStatus('Initializing PDF document...', 'info');
 
         const doc = new PDFDocument({
@@ -542,6 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- PRE-FETCH IMAGE TO AVOID DUPLICATE HITS ---
             if (article.featureImageUrl) {
                 try {
+                    const imgFetchStartTime = performance.now();
                     updateStatus('Pre-fetching feature image...', 'info');
                     const proxyImageUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(article.featureImageUrl)}`;
                     const imageResponse = await fetch(proxyImageUrl);
@@ -552,19 +574,24 @@ document.addEventListener('DOMContentLoaded', () => {
                             imageBuffer = await convertWebPToJpeg(imageBuffer);
                         }
                         article._rawImageBuffer = imageBuffer;
+                        console.log(`[Performance] Image Pre-fetch & Convert took ${(performance.now() - imgFetchStartTime).toFixed(0)}ms`);
                     }
                 } catch (imgError) {
                     console.warn(`Could not pre-fetch feature image. Error: ${imgError.message}`);
                 }
             }
 
+            const renderStartTime = performance.now();
             await renderIndexPage(doc, article);
             await renderArticleForDevice(doc, article, DEVICE_PROFILES.PRO_MOVE);
             await renderArticleForDevice(doc, article, DEVICE_PROFILES.PRO);
+            console.log(`[Performance] Document Rendering (Index + 2 Devices) took ${(performance.now() - renderStartTime).toFixed(0)}ms`);
 
             updateStatus('Finalizing PDF...', 'info');
             doc.end();
             stream.on('finish', function () {
+                console.log(`[Performance] PDF Stream Pipe & Finish took ${(performance.now() - streamStartTime).toFixed(0)}ms`);
+
                 const url = stream.toBlobURL('application/pdf');
                 const a = document.createElement('a');
 
