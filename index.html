@@ -97,7 +97,8 @@
                 <span class="summary-hint">(Stored securely in your browser)</span>
             </summary>
             <div class="details-content input-wrapper">
-                <input type="password" id="api-key-input" placeholder="AIzaSy...">
+                <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="new-password"
+                    data-lpignore="true">
                 <button id="toggle-key-btn" class="btn-icon" aria-label="Toggle API Key Visibility">
                     <span class="material-symbols-outlined" id="toggle-key-icon">visibility</span>
                 </button>
@@ -115,7 +116,8 @@
                     <input type="url" id="proxy-url-input" placeholder="Proxy Web App URL...">
                 </div>
                 <div class="input-wrapper">
-                    <input type="password" id="proxy-token-input" placeholder="Secret Token...">
+                    <input type="password" id="proxy-token-input" placeholder="Secret Token..."
+                        autocomplete="new-password" data-lpignore="true">
                     <button id="toggle-proxy-key-btn" class="btn-icon" aria-label="Toggle Token Visibility">
                         <span class="material-symbols-outlined" id="toggle-proxy-key-icon">visibility</span>
                     </button>
