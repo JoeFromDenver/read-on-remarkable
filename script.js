@@ -53,6 +53,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleKeyIcon = document.getElementById('toggle-key-icon');
     const apiKeyGroup = document.getElementById('api-key-group');
     const extractionToggle = document.getElementById('extraction-toggle');
+    const proxyUrlInput = document.getElementById('proxy-url-input');
+    const proxyTokenInput = document.getElementById('proxy-token-input');
+    const toggleProxyKeyBtn = document.getElementById('toggle-proxy-key-btn');
+    const toggleProxyKeyIcon = document.getElementById('toggle-proxy-key-icon');
+    const proxySettingsGroup = document.getElementById('proxy-settings-group');
 
     // --- EVENT LISTENERS ---
     btnQuickPdf.addEventListener('click', () => startConversion('pdf'));
@@ -102,6 +107,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     });
 
+    toggleProxyKeyBtn.addEventListener('click', () => {
+        if (proxyTokenInput.type === 'password') {
+            proxyTokenInput.type = 'text';
+            toggleProxyKeyIcon.textContent = 'visibility_off';
+        } else {
+            proxyTokenInput.type = 'password';
+            toggleProxyKeyIcon.textContent = 'visibility';
+        }
+    });
+
+    [proxyUrlInput, proxyTokenInput].forEach(el => {
+        el.addEventListener('change', () => {
+            localStorage.setItem('geminiProxyUrl', proxyUrlInput.value.trim());
+            localStorage.setItem('geminiProxyToken', proxyTokenInput.value.trim());
+        });
+    });
+
     // File Drag and Drop / Selection listeners
     // --- INITIALIZATION ---
     loadHistory();
@@ -113,6 +135,14 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         apiKeyGroup.setAttribute('open', '');
     }
+
+    const defaultProxyUrl = 'https://script.google.com/macros/s/AKfycbygYXPY8ses6-VrH4tTuESxqEMJdATjdYz7pC82pbYGLDWir69PKTUHxqbVChXnisTc/exec';
+    const defaultProxyToken = 'hardcopy-litmus-supply';
+
+    proxyUrlInput.value = localStorage.getItem('geminiProxyUrl') || defaultProxyUrl;
+    proxyTokenInput.value = localStorage.getItem('geminiProxyToken') || defaultProxyToken;
+    localStorage.setItem('geminiProxyUrl', proxyUrlInput.value);
+    localStorage.setItem('geminiProxyToken', proxyTokenInput.value);
 
     // --- WEB SHARE TARGET HANDLING ---
     handleSharedUrl();
@@ -337,32 +367,61 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleLoading(true);
         try {
             updateStatus('Fetching article content...', 'info');
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            const customProxyUrl = proxyUrlInput.value.trim();
+            const customProxyToken = proxyTokenInput.value.trim();
+            let proxyUrl = '';
+
+            if (customProxyUrl) {
+                proxyUrl = `${customProxyUrl}?url=${encodeURIComponent(url)}&secret=${encodeURIComponent(customProxyToken)}`;
+            } else {
+                proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            }
+
             const response = await fetchWithBackoff(proxyUrl);
             if (!response.ok) throw new Error(`Failed to fetch URL (Status: ${response.status})`);
-            const html = await response.text();
+
+            let html = '';
+            if (customProxyUrl) {
+                const textResponse = await response.text();
+                try {
+                    const proxyResponse = JSON.parse(textResponse);
+                    html = proxyResponse.content || textResponse;
+                } catch (e) {
+                    html = textResponse;
+                }
+            } else {
+                html = await response.text();
+            }
 
             let articleData = null;
 
+            updateStatus('Parsing article locally...', 'info');
+            articleData = await extractWithReadability(html, url);
+            const isReadabilityBad = !articleData.title || !articleData.articleBodyHtml || articleData.articleBodyHtml.trim().length < 50;
+
             if (!extractionToggle.checked) {
                 // Detailed (AI) extraction
-                updateStatus('Asking AI model to extract article...', 'info');
-                articleData = await callGeminiForUrl(html, url);
+                if (isReadabilityBad) {
+                    updateStatus('Local parse failed. Asking AI for FULL extraction (slow)...', 'info');
+                    articleData = await callGeminiForUrl(html, url);
+                } else {
+                    updateStatus('Asking AI model for metadata...', 'info');
+                    const metadata = await callGeminiForMetadata(html, url);
+                    articleData.title = metadata.title || articleData.title;
+                    articleData.author = metadata.author || articleData.author;
+                    articleData.publicationDate = metadata.publicationDate || articleData.publicationDate;
+                    articleData.publicationName = metadata.publicationName || articleData.publicationName;
+                    articleData.featureImageUrl = metadata.featureImageUrl || articleData.featureImageUrl;
+                }
             } else {
                 // Fast (Local) extraction via Readability.js
-                updateStatus('Parsing article locally...', 'info');
-                articleData = await extractWithReadability(html, url);
-
-                // If Readability fails or returns garbage, auto-fallback to AI (if key exists)
-                if (!articleData.title || !articleData.articleBodyHtml || articleData.articleBodyHtml.trim().length < 50) {
+                if (isReadabilityBad) {
                     console.warn("Readability failed or returned insufficient content. Falling back to Gemini...");
-
                     const apiKey = localStorage.getItem('geminiApiKey');
                     if (!apiKey || apiKey.trim() === '') {
                         throw new Error("Local parsing failed, and no Gemini API key is available for AI fallback. Please provide a key.");
                     }
-
-                    updateStatus('Local parse insufficient. Falling back to AI model...', 'info');
+                    updateStatus('Local parse insufficient. Falling back to FULL AI extraction (slow)...', 'info');
                     articleData = await callGeminiForUrl(html, url);
                 }
             }
@@ -798,6 +857,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- GEMINI API CALLS ---
+    async function callGeminiForMetadata(rawHtml, originalUrl) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, 'text/html');
+
+        const elementsToRemove = doc.querySelectorAll('script, style, svg, nav, footer, aside, noscript, iframe, path, symbol');
+        elementsToRemove.forEach(el => el.remove());
+
+        const cleanedHtml = doc.body ? (doc.head ? doc.head.innerHTML + '\n' + doc.body.innerHTML : doc.body.innerHTML) : rawHtml;
+
+        const systemPrompt = `You are a metadata extraction agent. Analyze the provided HTML of a web article and return a clean, structured JSON object containing ONLY the metadata. DO NOT extract the article body HTML.`;
+
+        const payload = {
+            contents: [{ parts: [{ text: `Original URL: ${originalUrl}\n\nHTML:\n${cleanedHtml}` }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "OBJECT",
+                    properties: {
+                        "title": { "type": "STRING" },
+                        "author": { "type": "STRING" },
+                        "publicationDate": { "type": "STRING" },
+                        "publicationName": { "type": "STRING" },
+                        "featureImageUrl": { "type": "STRING" }
+                    },
+                    required: ["title"]
+                }
+            }
+        };
+        return await makeGeminiRequest(payload);
+    }
+
     async function callGeminiForUrl(rawHtml, originalUrl) {
         // Pre-process HTML to massively reduce token payload and speed up Gemini TTFT
         const parser = new DOMParser();

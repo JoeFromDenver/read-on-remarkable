@@ -104,6 +104,25 @@
             </div>
         </details>
 
+        <details class="input-group details-group" id="proxy-settings-group">
+            <summary class="details-summary">
+                <span class="material-symbols-outlined">api</span>
+                Custom CORS Proxy
+                <span class="summary-hint">(Advanced: Google Apps Script)</span>
+            </summary>
+            <div class="details-content" style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="input-wrapper">
+                    <input type="url" id="proxy-url-input" placeholder="Proxy Web App URL...">
+                </div>
+                <div class="input-wrapper">
+                    <input type="password" id="proxy-token-input" placeholder="Secret Token...">
+                    <button id="toggle-proxy-key-btn" class="btn-icon" aria-label="Toggle Token Visibility">
+                        <span class="material-symbols-outlined" id="toggle-proxy-key-icon">visibility</span>
+                    </button>
+                </div>
+            </div>
+        </details>
+
         <div class="action-area" style="margin-top: 1rem;">
             <div class="toggle-container"
                 style="display: flex; align-items: center; justify-content: center; gap: 10px;">
