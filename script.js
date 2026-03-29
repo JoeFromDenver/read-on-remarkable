@@ -548,7 +548,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const doc = new PDFDocument({
             bufferPages: true,
-            autoFirstPage: false
+            autoFirstPage: false,
+            compress: false // Disabling to avoid pure-JS zlib compression hanging the browser thread
         });
         const stream = doc.pipe(blobStream());
 
@@ -561,7 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
             doc.registerFont('BoldItalicFont', 'Times-BoldItalic');
 
             // --- PRE-FETCH IMAGE TO AVOID DUPLICATE HITS ---
-            if (article.featureImageUrl) {
+            if (article.featureImageUrl && article.featureImageUrl !== 'null' && article.featureImageUrl !== 'undefined') {
                 try {
                     const imgFetchStartTime = performance.now();
                     updateStatus('Pre-fetching feature image...', 'info');
